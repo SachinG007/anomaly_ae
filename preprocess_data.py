@@ -1,9 +1,31 @@
+from __future__ import print_function
 import os
 import numpy as np
 import librosa
 import argparse
 import random
-from tqdm import tqdm
+# from tqdm import tqdm
+
+def load_generated_data(options):
+    normal_data = np.load(os.path.join(options.dataset_path, 'idct_spec_slider_00_0.005thresh_normal.npy'))
+    abnormal_data = np.load(os.path.join(options.dataset_path, 'idct_spec_slider_00_0.005thresh_abnormal.npy'))
+    print(normal_data.shape)
+    print(abnormal_data.shape)
+    np.random.shuffle(normal_data)
+    np.random.shuffle(abnormal_data)
+    
+    normal_train = normal_data[119:, :, :]
+    normal_train = normal_train[:, :-8, :].reshape(-1, 512 * 15)
+    
+    val_data = []
+    for sample in abnormal_data:
+        val_data.append((sample[:-8, :].reshape(-1, 512 * 15), 1))
+    
+    for sample in normal_data[:119]:
+        val_data.append((sample[:-8, :].reshape(-1, 512 * 15), 0))
+    val_data = np.array(val_data)
+    print(normal_train.shape, val_data.shape)
+    return normal_train, val_data
 
 def load_dataset(options):
     normal_path = os.path.join(options.dataset_path, 'normal')
@@ -78,7 +100,7 @@ def extract_features(file_path):
     data = data[0, :] # Consider single channel
     data = np.asfortranarray(data)
     # features = [n_mel, timesteps]
-    features = librosa.power_to_db(librosa.feature.melspectrogram(y=data, sr=rate, n_mels=64, win_length=1024, hop_length=512))
+    features = librosa.feature.melspectrogram(y=data, sr=rate, n_mels=64, win_length=1024, hop_length=512)
     features = features.transpose(1, 0) # features = [timesteps, n_mel]
     if options.type == 'non-ts':
         skip_steps = features.shape[0] % 5
@@ -91,8 +113,8 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output_path', type=str)
     parser.add_argument('-t', '--type', type=str)
     options = parser.parse_args()
-
-    train, val = load_dataset(options)
+    train, val = load_generated_data(options)
+    # train, val = load_dataset(options)
     np.save(os.path.join(options.output_path, 'train.npy'), train)
     np.save(os.path.join(options.output_path, 'val.npy'), val, allow_pickle=True)
 
