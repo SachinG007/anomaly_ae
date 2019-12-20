@@ -111,7 +111,7 @@ def train(options, model, train_data, val_data):
     """
     data_loader = DataLoader(train_data, batch_size=options.batch_size, shuffle=True)
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
     num_iters = len(train_data) // options.batch_size
     for epoch in range(options.epochs):
         training_loss = 0.0

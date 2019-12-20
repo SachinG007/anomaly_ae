@@ -45,7 +45,10 @@ def load_dataset(options):
         train_data = np.reshape(train_data, (-1, 64 * 5))
     else: 
         for train_file in tqdm(normal_train):
-            train_data.append(extract_features(os.path.join(normal_path, train_file)))
+            features = extract_features(os.path.join(normal_path, train_file))
+            # print(features.shape)
+            features = np.split(features, features.shape[0] // 100)
+            train_data.extend(features)
         train_data = np.array(train_data)
     
     val_data = []
@@ -102,7 +105,10 @@ def extract_features(file_path):
     # features = [n_mel, timesteps]
     features = librosa.feature.melspectrogram(y=data, sr=rate, n_mels=64, win_length=1024, hop_length=512)
     features = features.transpose(1, 0) # features = [timesteps, n_mel]
-    if options.type == 'non-ts':
+    if options.type != 'non-ts':
+        skip_steps = features.shape[0] % 100
+        features = features[:-skip_steps, :]
+    else: 
         skip_steps = features.shape[0] % 5
         features = np.reshape(features[:-skip_steps, :], (features.shape[0] // 5, 320)) # features = [timesteps // 5, n_mels * 5]
     return features
