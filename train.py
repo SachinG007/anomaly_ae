@@ -8,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
 import pdb
-
+device = torch.device("cuda")
 class AudioDataset(Dataset):
     def __init__(self, data):
         self.data = data
@@ -71,7 +71,7 @@ class LSTMAutoencoder(nn.Module):
     def forward(self, x):
         _, (h, c) = self.encoder(x)
 
-        self.dec_input = torch.zeros(x.size(0), x.size(1), 1, device=torch.device('cuda'))
+        self.dec_input = torch.zeros(x.size(0), x.size(1), 1, device=device)
 
         intermediate, _ = self.decoder(self.dec_input, (h, c))
         intermediate = torch.transpose(intermediate, 0, 1)
@@ -93,7 +93,7 @@ def eval(options, model, val_data):
         sample = torch.FloatTensor(sample)
         # sample = torch.FloatTensor(np.expand_dims(sample, 0))
         if options.device == 'gpu':
-            sample = sample.to(torch.device('cuda:3'))
+            sample = sample.to(device)
         # sample, label = val_data[i]
         # print(sample.size())
         with torch.no_grad():
@@ -111,15 +111,17 @@ def train(options, model, train_data, val_data):
     """
     data_loader = DataLoader(train_data, batch_size=options.batch_size, shuffle=True)
     loss_fn = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
+    optimizer = torch.optim.Adam(model.parameters(), lr=options.lr)
     num_iters = len(train_data) // options.batch_size
     for epoch in range(options.epochs):
         training_loss = 0.0
         rel_loss = 0.0
         for _, batch_x in enumerate(data_loader):
+            # import pdb;pdb.set_trace()
             if options.device == 'gpu':
-                batch_x = batch_x.to(torch.device('cuda:3'))
+                batch_x = batch_x.to(device)
             # print(batch_x.size())
+            batch_x = batch_x.to(torch.float)
             rec_x = model(batch_x)
             loss = loss_fn(input=rec_x, target=batch_x)
             training_loss += loss.mean()
@@ -140,8 +142,8 @@ def train(options, model, train_data, val_data):
 
 
 def load_data(path):
-    train_data = np.load(os.path.join(path, 'train.npy'))
-    val_data = np.load(os.path.join(path, 'val.npy'), allow_pickle=True)
+    train_data = np.load(os.path.join(path, 'trainv2.npy'))
+    val_data = np.load(os.path.join(path, 'valv2.npy'), allow_pickle=True)
     mean = np.mean(train_data)
     std = np.std(train_data)
     # mean = np.mean(np.reshape(train_data, [-1, train_data.shape[-1]]), axis=1)
@@ -157,23 +159,26 @@ def load_data(path):
 
 def main(options):
     train_data_, val_data_ = load_data(options.data_path)
+    # import pdb;pdb.set_trace()
     train_data = AudioDataset(train_data_)
     val_data = AudioDataset(val_data_)
-    model = Autoencoder(train_data.features, options.encoding_dim, [1024, 512, 128], [128, 512, 1024])
+    # model = Autoencoder(train_data.features, options.encoding_dim, [1024, 512, 128], [128, 512, 1024])
+    model = Autoencoder(train_data.features, options.encoding_dim, [64,64], [64,64])
 
     # model = LSTMAutoencoder(train_data.features, options.encoding_dim, options.batch_size, train_data_.shape[1])
     if options.device == 'gpu':
-        model.cuda(3)
+        model.to(device)
     train(options, model, train_data, val_data)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--data_path', type=str, default='.')
-    parser.add_argument('-s', '--encoding_dim', type=int, default=128)
+    parser.add_argument('-s', '--encoding_dim', type=int, default=8)
     parser.add_argument('-b', '--batch_size', type=int, default=32)
     parser.add_argument('-e', '--epochs', type=int, default=100)
     parser.add_argument('-dev', '--device', type=str, default='cpu')
+    parser.add_argument('-lr', type=float)
     options = parser.parse_args()
 
     main(options)
